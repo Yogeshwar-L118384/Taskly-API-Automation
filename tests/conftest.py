@@ -3,8 +3,13 @@ import pathlib
 import glob
 import allure
 import pytest
-from teh_ai.response_logger import get_logger     # <-- import your logger
-import allure
+from teh_ai.response_logger import get_logger
+from playwright.sync_api import sync_playwright
+import os
+import uuid
+import shutil
+import json
+import uuid
 
 @pytest.fixture(autouse=True)
 def test_logger(request, tmp_path):
@@ -37,6 +42,62 @@ def test_logger(request, tmp_path):
         # remove handler to flush
         logger.removeHandler(handler)
         handler.close()
+
+
+@pytest.fixture(scope="session")
+def logger():
+    """Response logger fixture for logging API responses"""
+    return get_logger()
+
+
+@pytest.fixture(autouse=True)
+def playwright_screenshot_on_failure(request):
+    """Capture Playwright screenshot on test failure and attach to Allure report."""
+    
+    def on_failure(test_failed=False):
+        if test_failed:
+            try:
+                # Launch browser and take screenshot
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(
+                        executable_path=r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                        headless=True
+                    )
+                    page = browser.new_page()
+                    
+                    # Open a simple test info page
+                    page.content = f"""
+                    <html>
+                        <head><title>Test Failed: {request.node.name}</title></head>
+                        <body>
+                            <h1 style="color:red;">❌ Test Failed</h1>
+                            <h2>{request.node.name}</h2>
+                            <p>Timestamp: {__import__('datetime').datetime.now()}</p>
+                        </body>
+                    </html>
+                    """
+                    
+                    # Take screenshot
+                    screenshot_path = f"/tmp/{request.node.name}_failure.png"
+                    os.makedirs(os.path.dirname(screenshot_path) or ".", exist_ok=True)
+                    page.screenshot(path=screenshot_path)
+                    
+                    # Attach to allure
+                    allure.attach.file(
+                        source=screenshot_path,
+                        name=f"Screenshot - {request.node.name}",
+                        attachment_type=allure.attachment_type.PNG
+                    )
+                    
+                    browser.close()
+            except Exception as e:
+                print(f"⚠️  Could not capture screenshot: {e}")
+    
+    yield
+    
+    # Capture screenshot if test failed
+    if request.node.rep_call.failed if hasattr(request.node, 'rep_call') else False:
+        on_failure(True)
 
 
 @pytest.hookimpl(hookwrapper=True)

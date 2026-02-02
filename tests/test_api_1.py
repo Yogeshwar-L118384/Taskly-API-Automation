@@ -6,16 +6,10 @@ import requests
 import pandas as pd
 import os
 import time
+import allure
 from pathlib import Path
 from teh_ai.playwrt2 import ask_api, get_token
-from teh_ai.response_logger import get_logger     # <-- import your logger
-import shutil
-
-
-@pytest.fixture(scope="session")
-def logger():
-    return get_logger()
-
+from teh_ai.response_logger import get_logger
 
 @pytest.fixture
 def token_data():
@@ -39,6 +33,10 @@ def test_questions():
     return df["question"].tolist()
 
 
+@allure.title("Token Retrieval Test")
+@allure.description("Verify that token is retrieved with all required fields")
+@allure.feature("Authentication")
+@allure.story("Token Management")
 def test_token_retrieval(token_data, logger):
     assert "access_token" in token_data
     assert "user_id" in token_data
@@ -52,6 +50,10 @@ def test_token_retrieval(token_data, logger):
     )
 
 
+@allure.title("Test Taskly API with Different Questions")
+@allure.description("Verify API works with multiple different questions")
+@allure.feature("API Testing")
+@allure.story("Question Answering")
 @pytest.mark.parametrize("question", [
     "What is RIM?",
     "How to create a binder with template?",
@@ -96,6 +98,10 @@ def test_ask_api_with_different_questions(question, logger):
 
 
 
+@allure.title("Test API with CSV Questions")
+@allure.description("Verify API works with questions loaded from CSV file")
+@allure.feature("API Testing")
+@allure.story("Batch Question Testing")
 def test_ask_api_with_questions_from_csv(test_questions, logger):
     for question in test_questions:
         start = time.time()
@@ -136,6 +142,10 @@ def test_ask_api_with_questions_from_csv(test_questions, logger):
 #         with open(f"test_response_{clean_filename}.json", "w") as f:
 #             json.dump(response, f, indent=2)
 
+@allure.title("Test Error Handling")
+@allure.description("Verify API handles invalid input gracefully")
+@allure.feature("API Testing")
+@allure.story("Error Handling")
 def test_ask_api_error_handling(logger):
     # with pytest.raises((Exception, requests.exceptions.HTTPError)):
     ask_api(None)
@@ -148,6 +158,10 @@ def test_ask_api_error_handling(logger):
     )
 
 
+@allure.title("Test Conversation Context")
+@allure.description("Verify API maintains context between consecutive questions")
+@allure.feature("API Testing")
+@allure.story("Conversation Context")
 def test_conversation_context(api_client, logger):
     start = time.time()
     response1 = ask_api("What is RIM?")
@@ -163,6 +177,10 @@ def test_conversation_context(api_client, logger):
     logger.log_response("Tell me more about it", response2, 200, end - mid)
 
 
+@allure.title("Test API Performance")
+@allure.description("Verify API response time is within acceptable limits")
+@allure.feature("API Testing")
+@allure.story("Performance Testing")
 def test_api_performance(logger):
     start = time.time()
     response = ask_api("What is RIM?")

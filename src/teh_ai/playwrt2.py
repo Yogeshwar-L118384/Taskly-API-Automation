@@ -2,6 +2,7 @@ import json
 import time
 import requests
 import urllib3
+import base64
 from playwright.sync_api import sync_playwright
 
 # Suppress InsecureRequestWarning globally for this module when verify=False is used.
@@ -30,19 +31,64 @@ def fetch_from_localstorage():
         browser = p.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
             executable_path=edge_path,
-            headless=True,
+            headless=False,
             ignore_https_errors=True,
         )
         page = browser.new_page()
 
         # 🔹 Replace this with the EXACT domain from DevTools:
-        page.goto("https://dev.taskly.lilly.com")  
+        page.goto(APP_URL)
+        page.wait_for_load_state("networkidle")  # Wait for page to fully load
+        
+        # Add extra wait time to ensure localStorage is populated
+        import time
+        time.sleep(3)
 
         # Print all available keys and values
         all_data = page.evaluate("Object.entries(localStorage)")
         print("=== Raw localStorage ===")
+        print(f"Total items in localStorage: {len(all_data)}")
         for key, val in all_data:
-            print(f"{key}: {val}")
+            print(f"KEY: '{key}'")
+            print(f"VALUE: {val[:200]}")
+            print("---")
+
+        # Also check sessionStorage
+        session_data = page.evaluate("Object.entries(sessionStorage)")
+        print("\n=== Raw sessionStorage ===")
+        print(f"Total items in sessionStorage: {len(session_data)}")
+        for key, val in session_data:
+            print(f"{key}: {val[:100]}")
+
+        # Check cookies
+        cookies = page.context.cookies()
+        print("\n=== Browser Cookies ===")
+        print(f"Total cookies: {len(cookies)}")
+        for cookie in cookies:
+            print(f"{cookie['name']}: {cookie['value'][:100] if len(cookie['value']) > 0 else 'EMPTY'}")
+
+        # Check if we're actually logged in by looking at the page content
+        print("\n=== Page Title ===")
+        print(page.title())
+        
+        # Get the HTML to see what data might be in the page
+        print("\n=== Checking window object for auth data ===")
+        try:
+            window_keys = page.evaluate("Object.keys(window)")
+            print(f"Total window properties: {len(window_keys)}")
+            # Look for auth-related properties
+            auth_keys = [k for k in window_keys if 'auth' in k.lower() or 'token' in k.lower() or 'user' in k.lower()]
+            print(f"Auth-related keys: {auth_keys}")
+        except Exception as e:
+            print(f"Error checking window: {e}")
+
+        # Check IndexedDB
+        print("\n=== Checking IndexedDB ===")
+        try:
+            indexeddb_data = page.evaluate("Object.keys(indexedDB)")
+            print(f"IndexedDB available: {len(indexeddb_data) > 0}")
+        except Exception as e:
+            print(f"Error checking IndexedDB: {e}")
 
         # Try to get specific items
         token = page.evaluate("localStorage.getItem('token')")
@@ -67,8 +113,30 @@ def get_token():
 
     print("Fetching new token from browser...")
     token, user_id, conversation_id = fetch_from_localstorage()
-    if not token or not user_id:
-        raise Exception("Token or userId not found in localStorage!")
+    if not token:
+        raise Exception("Token not found in localStorage!")
+
+    # Extract user_id from JWT if not found in localStorage
+    if not user_id:
+        try:
+            # Decode JWT to get user_id (it's in the 'preferred_username' or 'uid' claim)
+            parts = token.split('.')
+            if len(parts) >= 2:
+                # Decode the payload (second part)
+                payload = parts[1]
+                # Add padding if needed
+                padding = 4 - len(payload) % 4
+                if padding != 4:
+                    payload += '=' * padding
+                decoded = base64.urlsafe_b64decode(payload)
+                claims = json.loads(decoded)
+                user_id = claims.get('uid') or claims.get('oid') or claims.get('preferred_username')
+                print(f"✅ Extracted userId from JWT: {user_id}")
+        except Exception as e:
+            print(f"Could not decode JWT: {e}")
+
+    if not user_id:
+        raise Exception("Token or userId not found!")
 
     # Cache with expiry
     token_data = {

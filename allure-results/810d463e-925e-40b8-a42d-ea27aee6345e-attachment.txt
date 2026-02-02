@@ -1,0 +1,7 @@
+🔐 Fetching token from browser at https://qa.taskly.lilly.com/
+✅ Token cached to token_cache.json
+
+➡️ Calling API: https://k77ornbz5e-vpce-058757a9c034d181c.execute-api.us-east-2.amazonaws.com/qa/v2/ask
+   Params: {'userId': 'bd6c7f19-b1dc-4111-8264-233880e638ab', 'status': 'true', 'message': 'Health check', 'isAgenticApproach': 'false', 'conversationId': 'e31a2b22-7dd6-489b-8e76-fef537e0b1cb'}
+   Status: 200
+✅ Test 1 PASSED: HTTP 200
