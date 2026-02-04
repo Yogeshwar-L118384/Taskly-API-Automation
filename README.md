@@ -1,4 +1,4 @@
-# TEH_AI — Test Framework
+# Generic API Test Framework
 
 This repository contains pytest tests for the TEH_AI API and scripts to generate an Allure HTML report.
 
